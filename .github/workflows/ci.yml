@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # mongodb-memory-server 11 exige Node >= 20.19.0
+          node-version: 22
+          cache: npm
+
+      # Directorio fijo y conocido para el binario de mongod (lo usan npm ci,
+      # el paso de precalentamiento y jest). No se usa ningun MONGODB_URI real.
+      - name: Fijar directorio de binarios de mongodb-memory-server
+        run: echo "MONGOMS_DOWNLOAD_DIR=$HOME/.cache/mongodb-binaries" >> "$GITHUB_ENV"
+
+      - name: Cache del binario de mongod
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            mongodb-binaries-${{ runner.os }}-
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Descarga/arranca mongod antes de jest para que el timeout de 5 s de
+      # beforeAll no incluya la descarga del binario (sin tocar los tests).
+      - name: Precalentar mongodb-memory-server
+        run: |
+          node -e "const { MongoMemoryServer } = require('mongodb-memory-server'); (async () => { const m = await MongoMemoryServer.create(); await m.stop(); })().catch(e => { console.error(e.message); process.exit(1); })"
+
+      - name: Tests
+        run: npm test -- --ci
+
+      # Bloqueante: solo dependencias de produccion con severidad alta o critica.
+      - name: Audit (produccion, bloquea en high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Informativo: incluye devDependencies; no bloquea la PR.
+      - name: Audit (completo, informativo)
+        continue-on-error: true
+        run: npm audit

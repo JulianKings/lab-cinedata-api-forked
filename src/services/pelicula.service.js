@@ -49,6 +49,16 @@ async function eliminar(id) {
     return Pelicula.findByIdAndDelete(id);
 }
 
+async function estadisticasPorGenero(minimo = 1) {
+    return Pelicula.aggregate([
+        { $unwind: "$generos" },
+        { $group: { _id: "$generos", total: { $sum: 1 }, notaMedia: { $avg: "$nota" } } },
+        { $match: { total: { $gte: minimo } } },
+        { $project: { _id: 0, genero: "$_id", total: 1, notaMedia: { $round: ["$notaMedia", 2] } } },
+        { $sort: { notaMedia: -1, genero: 1 } }
+    ]);
+}
+
 // FUNCIONES AUXILIARES
 function esIdValido(id) {
     return mongoose.isValidObjectId(id);
@@ -56,4 +66,4 @@ function esIdValido(id) {
 
 
 
-module.exports = { listar, mejores, buscarPorId, esIdValido, crear, actualizar, eliminar };
+module.exports = { listar, mejores, buscarPorId, esIdValido, crear, actualizar, eliminar, estadisticasPorGenero };
