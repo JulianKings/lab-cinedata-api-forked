@@ -47,6 +47,14 @@ const opciones = {
                         disponible: { type: "boolean", example: true }
                     }
                 },
+                EstadisticaGenero: {
+                    type: "object",
+                    properties: {
+                        genero: { type: "string", example: "Drama" },
+                        total: { type: "integer", example: 4 },
+                        notaMedia: { type: "number", nullable: true, example: 8.48 }
+                    }
+                },
                 Error: {
                     type: "object",
                     properties: {
@@ -64,7 +72,8 @@ const opciones = {
             }
         }
     },
-       apis: [path.join(__dirname, '../routes/*.js')]
+       // swagger-jsdoc usa glob, que exige "/" (en Windows path.join genera "\")
+       apis: [path.join(__dirname, '../routes/*.js').split(path.sep).join('/')]
 };
 
 module.exports = swaggerJsdoc(opciones);       
